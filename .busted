@@ -1,0 +1,7 @@
+return {
+  _all = {
+    output = 'TAP',
+--    output = 'plainTerminal',
+    lpath = './lib/?.lua;./src/?.lua'
+  }
+}
