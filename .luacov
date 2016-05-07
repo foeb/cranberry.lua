@@ -1,0 +1,7 @@
+return {
+  modules = {
+    ["cranberry"] = "./cranberry.lua"
+  },
+  runreport = true,
+  deletestats = true
+}

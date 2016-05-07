@@ -1,7 +1,9 @@
+local useTap = false
+
 return {
   _all = {
-    output = 'TAP',
---    output = 'plainTerminal',
+    coverage = true,
+    output = (useTap and 'TAP') or 'plainTerminal',
     lpath = './lib/?.lua;./src/?.lua'
   }
 }
