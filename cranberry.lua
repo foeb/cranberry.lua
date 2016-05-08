@@ -838,7 +838,7 @@ function cb.merge(a, b, comp)
   end
   comp = comp or cb.op.lt
   local r = {}
-  while not cb.empty(a) and not cb.empty(b) do
+  while not cb.is_empty(a) and not cb.is_empty(b) do
     if comp(a[1], b[1]) then
       cb.push_(r, a[1])
       a = cb.tail(a)
@@ -847,11 +847,11 @@ function cb.merge(a, b, comp)
       b = cb.tail(b)
     end
   end
-  while not cb.empty(a) do
+  while not cb.is_empty(a) do
     cb.push_(r, a[1])
     a = cb.tail(a)  
   end
-  while not cb.empty(b) do
+  while not cb.is_empty(b) do
     cb.push_(r, b[1])
     b = cb.tail(b)
   end
@@ -879,7 +879,7 @@ function cb.mergesort(a, comp)
   end
   left = cb.mergesort(left, comp)
   right = cb.mergesort(right, comp)
-  return cb.merge(left, right)
+  return cb.merge(left, right, comp)
 end
 
 -- sort(a, comp = op.lt): shallowcopy a and then calls table.sort
@@ -943,7 +943,7 @@ function cb.countBy(a, f)
   if r == nil then
     return nil, cb.errors.not_table
   end
-  cb.map_(cb.op.len, r)
+  cb.mapObject_(cb.op.len, r)
   return r
 end
 
@@ -1096,6 +1096,12 @@ function cb.iterlist(it)
     i = i + 1
   end
 end
+
+-- inc(i): return i + 1 (utility)
+function cb.inc(i) return i + 1 end
+
+-- dec(i): return i - 1 (utility)
+function cb.dec(i) return i - 1 end
 
 -- clone(o, ?_type): return an instance of o as a prototype
 function cb.clone(o, _type)
@@ -1318,20 +1324,27 @@ end
 
 -- is_table(o): return true if o is a table
 function cb.is_table(o)
-  if type(o) == 'table' then return true end
-  return false
+  return type(o) == 'table'
 end
 
 -- is_string(o): return true if o is a string
 function cb.is_string(o)
-  if type(o) == 'string' then return true end
-  return false
+  return type(o) == 'string' 
 end
 
 -- is_number(o): return true if o is a number
 function cb.is_number(o)
-  if type(o) == 'number' then return true end
-  return false
+  return type(o) == 'number' 
+end
+
+-- is_function(o): return true if o is a number
+function cb.is_function(o)
+  return type(o) == 'function'
+end
+
+-- is_callable(o): return true if o can be called like a function
+function cb.is_callable(o)
+  return cb.is_function or (getmetatable(o) and getmetatable(o).__call ~= nil)
 end
 
 return cb

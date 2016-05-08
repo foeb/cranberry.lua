@@ -42,7 +42,7 @@ describe('cranberry', function()
     assert.is_same(v, { 'A', 'B', 'C', 'D' })
     assert.is_same(s, { 'a', 'b', 'c', 'd' })
   end)
-
+  
   test('foldr reduces the list from right to left using the function f', 
         function()
     local function f(x, y) return x - y end
@@ -449,6 +449,85 @@ describe('cranberry', function()
     local t2 = { 1, 'b', { 3, cb.id } }
     assert.is_true(cb.is_same(t1, t2))
     assert.is_not_true(cb.is_same(a, t1))
+  end)
+  
+  test('pluck should extract a list of property values', function()
+    local t = { 
+      { name = 'Ferdinand', species = 'cattle' },
+      { name = 'Bugs', species = 'rabbit' },
+      { name = 'Brian', species = 'dog' },
+    }
+    local vs =  cb.pluck(t, 'name')
+    assert.is_same({ 'Ferdinand', 'Bugs', 'Brian' }, vs)
+  end)
+  
+  --[[ works, but takes almost a second and I'm impatient
+  test('shuffle and shuffle_ should adequately shuffle arrays ' ..
+        '(note: don\'t worry if this fails on occasion, it is partially ' ..
+        'random)', function()
+    local function distance(a, b) 
+      -- distance between two arrays with the taxicab metric
+      -- discards the rest of the longer array
+      local total = 0
+      for i = 1, math.min(#a, #b) do
+        total = math.abs(b[i] - a[i])
+      end
+      return total
+    end
+    -- a = { 1,2,3,..., 100 }
+    local a = cb.iterlist(cb.takei(cb.iterate(cb.inc, 1), 100))
+    local b = cb.copy(a)
+    local total1 = 0
+    local total2 = 0
+    for _ = 1, #a do
+      total1 = total1 + distance(a, cb.shuffle(a))/(#a)^2
+      total2 = total2 + distance(a, cb.shuffle_(b))/(#a)^2
+    end
+    -- are the arrays the same size after getting shuffled?
+    assert.equals(#a, #cb.shuffle(a))
+    assert.equals(#a, #cb.shuffle_(b))
+    -- were they shuffled enough on average?
+    assert.is_true(total1 > 0.3) 
+    assert.is_true(total2 > 0.3) 
+  end)
+  --]]
+  
+  test('mergesort(a, comp = op.lt) should sort arrays nondestructively', 
+        function()
+     -- a = { 1,2,3,..., 100 }
+    local a = cb.iterlist(cb.takei(cb.iterate(cb.inc, 1), 100))
+    local b = cb.shuffle(a)
+    assert.is_same(a, cb.mergesort(b))
+  end)
+  
+  test('sortBy should return a stably sorted copy of a, ranked in ' ..
+       'ascending order by the results of running each value through f',
+       function()
+    local a = { 1, 2, 3, 4, 5, 6 }
+    assert.is_same({ 5, 4, 6, 3, 1, 2 }, cb.sortBy(a, math.sin))
+    local t = { 
+      { name = 'Ferdinand', species = 'cattle' },
+      { name = 'Bugs', species = 'rabbit' },
+      { name = 'Brian', species = 'dog' },
+    }
+    assert.is_same({
+      { name = 'Brian', species = 'dog' },    
+      { name = 'Bugs', species = 'rabbit' },
+      { name = 'Ferdinand', species = 'cattle' },
+    }, cb.sortBy(t, 'name'))
+  end)
+  
+  test('groupBy should group an array a under f', function()
+    local a = { 1, 2, 3, 4, 5 }
+    local f = cb.bind(cb.flip(cb.op.mod), 3)
+    assert.is_same({ { 1, 4 }, { 2, 5 }, [0] = { 3 } }, cb.groupBy(a, f))
+  end)
+  
+  test('countBy should group an array a under f and give their length',
+        function()
+    local a = { 1, 2, 3, 4, 5 }
+    local f = cb.bind(cb.flip(cb.op.mod), 3)
+    assert.is_same({ 2, 2, [0] = 1 }, cb.countBy(a, f))
   end)
   
   test('once(f) should return a function that only returns a value the ' ..
