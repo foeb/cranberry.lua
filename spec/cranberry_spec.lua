@@ -171,6 +171,7 @@ describe('cranberry', function()
     local p = function(v) return v > 2 end
     local f = function(v) return v + 1 end
     assert.is_same(cb.applyUntil(p, f, a), { 2, 3 })
+    assert.is_equal(cb.applyUntil(p, f, 1), 2)
   end)
   
   test('append should return a1 appended by a2', function()
@@ -358,6 +359,18 @@ describe('cranberry', function()
     )
   end)
   
+  test('wrap(f, w) should return bind(w, f), so that ' ..
+        'wrap(f, w)(...) = w(f, ...)', function()
+    local function f(x, y) return x + y*y end
+    local function w(f, x, y) return 'The result is ' .. f(x, y) .. '!' end
+    assert.equals('The result is 5!', cb.wrap(f, w)(1, 2))
+  end)
+  
+  test('uniq(a) should return an array containing all of a\'s unique ' ..
+        'values in the order that they appear', function()
+    assert.is_same({1,2,3}, cb.uniq({1,1,2,3,2,2,3,1}))
+  end)
+  
   test('negate(p) should return a function q such that q(v) = not p(v)',
         function()
     local function p(b) return not b end
@@ -384,10 +397,58 @@ describe('cranberry', function()
         'set o[k] = d[k]', function()
     local d = { fruit = true, color = 'orange', flavor = 'sour' }
     local o = { flavor = 'sweet' }
+    cb.defaults_(d, o)
+    assert.is_same({ fruit = true, color = 'orange', flavor = 'sweet' }, o)
+  end)
+  
+  test('defaults(d, o) should be like defaults_, except it returns a ' ..
+        'new table', function() 
+    local d = { fruit = true, color = 'orange', flavor = 'sour' }
+    local o = { flavor = 'sweet' }
     assert.is_same(
       { fruit = true, color = 'orange', flavor = 'sweet' },
-      cb.defaults_(d, o)
+      cb.defaults(d, o)
     )
+    assert.is_true(o.color == nil)
+  end)
+  
+  test('trycatch(f, errors, ?finally) should follow the specification',
+        function()
+    -- Specification:
+    -- trycatch(f, errors, ?finally): wrap f in a function such that, when it is
+    -- called, if f returns nil for its first value, then the wrapper checks
+    -- errors using the second value returned for a function. If it finds one,
+    -- it calls it with the original arguments and returns its result. The
+    -- optional finally function is called with the original arguments after 
+    -- either of these happens.
+    
+    local function f(t)
+      if not cb.is_table(t) then
+        return nil, cb.errors.not_table
+      end
+      return t
+    end
+    local function catch(t)
+      return tostring(t)
+    end
+    local i = 0
+    local function finally(t)
+      i = i + 1
+    end
+    local g = cb.trycatch(f, { [cb.errors.not_table] = catch }, finally)
+    assert.equals(a, g(a))
+    assert.equals(1, i)
+    assert.equals('4', g(4))
+    assert.equals(2, i)
+  end)
+  
+  test('is_same(t1, t2) should return true if t1 and t2 are ' .. 
+        '\'essentially\' equal, not including functions that return the ' ..
+        'same values.', function()
+    local t1 = { 1, 'b', { 3, cb.id } }
+    local t2 = { 1, 'b', { 3, cb.id } }
+    assert.is_true(cb.is_same(t1, t2))
+    assert.is_not_true(cb.is_same(a, t1))
   end)
   
   test('once(f) should return a function that only returns a value the ' ..
@@ -423,11 +484,84 @@ describe('cranberry', function()
     assert.equals(f(g(h(2))), cb.compose(f, g, h)(2))
   end)
   
-  test('new should return a copy of the object', function()
+  test('iterate(f, x) should return an iterator that applies f to the ' ..
+        'previous value in an endless loop', function()
+    local function f(x) return x + 1 end
+    local it = cb.iterate(f, 1)
+    for i = 1, 100 do
+      assert.equals(i, it())
+    end
+  end)
+  
+  test('replicate(n, x) should return an array containing x n times', 
+        function()
+    assert.is_same({ 1, 1, 1, 1, 1 }, cb.replicate(5, 1))
+  end)
+  
+  test('cycle(a): return an iterator that cycles through an array a in ' ..
+        'an endless loop', function()
+    local it = cb.cycle({ 1, 2, 3 })
+    assert.equals(1, it())
+    assert.equals(2, it())
+    assert.equals(3, it())
+    assert.equals(1, it())
+  end)
+  
+  test('takeWhilei(p, it) should be analagous to takeWhile, except takes ' ..
+        'an iterator and returns an iterator', function()
+    local function f(x) return x + 1 end
+    local function p(x) return x < 4 end
+    local it = cb.takeWhilei(p, cb.iterate(f, 1))
+    assert.equals(1, it())
+    assert.equals(2, it())
+    assert.equals(3, it())
+    assert.is_true(it() == nil)
+    assert.is_true(it() == nil)
+  end)
+  
+  test('takeWhilei(p, it) should be analagous to takeWhile, except takes ' ..
+        'an iterator and returns an iterator', function()
+    local function f(x) return x + 1 end
+    local function p(x) return x < 4 end
+    local it = cb.dropWhilei(p, cb.iterate(f, 1))
+    assert.is_true(it() == nil)
+    assert.is_true(it() == nil)
+    assert.is_true(it() == nil)
+    assert.equals(4, it())
+    assert.equals(5, it())
+    assert.equals(6, it())
+  end)
+  
+  test('copy should return a deep copy of the object', function()
+    local t2 = cb.copy(t)
+    assert.is_same(t, t2)
+    t2[2][1] = 'alfalfa'
+    assert.is_not_same(t, t2)
+  end)
+
+  test('shallowcopy should return a shallow copy of the object', function()
+    local t2 = cb.shallowcopy(t)
+    assert.is_same(t, t2)
+    assert.not_equals(t, t2)
+  end)
+  
+  test('duplicate should return a copy of object without copying its ' ..
+        'prototype', function()
+    local m = cb.object:clone('microbe')
+    local a1 = m:clone('amoeba')
+    local a2 = a1:duplicate()
+    assert.is_same(a1, a2)
+    assert.not_equals(a1, a2)
+    assert.equals(a1._super, a2._super)
+  end)
+  
+  test('new should return an instance of object as a prototype and ' ..
+        'initialize it', function()
     local o = cb.object:clone('fruit')
     local o2 = o:new()
     assert.equals(o._type, o2._type)
     assert.equals(o._super, o2._super)
+    assert.not_equals(o, o2)
   end)
   
   test('clone should allow access to their prototype\'s fields', function()
@@ -464,6 +598,117 @@ describe('cranberry', function()
     assert.is_true(macintosh:isa(cb.object))
   end)
   
+  --[[
+  test('setmeta should set the metatable of object while preserving ' ..
+        'inheritance.', function()
+    local book = cb.object:clone('book')
+    function book:read()
+      return cb.append(unpack(self.pages))
+    end
+    function book:init(name, pages)
+      self.name = name
+      self.pages = pages
+      cb.object.setmeta(self, {
+          __index = function(t, k) return t.pages[k] end
+      })
+    end
+    local kafkaOnTheShore = book:new(
+      'Kafka on the Shore', 
+      { 'A boy runs away from home', 'he meets some people', 'some guy finds cats', 'things happen', 'the end' }
+    )
+    assert.equals('A boy runs away from home', kafkaOnTheShore[1])
+    assert.equals('Kafka on the Shore', kafkaOnTheShore.name)
+    assert.truthy(kafkaOnTheShore.clone)
+  end)
+  --]]
+  
+  test('keys(t) should return all of the non-integer keys of t', function()
+    local o = { 8, pineapple = 'in shopping cart', thirsty = true }
+    local o2 = { secret = 'don\'t look!' }
+    setmetatable(o, { __index = o2 })
+    assert.is_true(cb.elem('pineapple', cb.keys(o)))
+    assert.is_true(cb.elem('thirsty', cb.keys(o)))
+    assert.is_not_true(cb.elem('secret', cb.keys(o)))
+    assert.is_not_true(cb.elem('1', cb.keys(o)))
+    assert.is_not_true(cb.elem(1, cb.keys(o)))
+  end)
+  
+  test('allKeys(t) should return all of the non-integer keys of t and ' ..
+        'its prototypes', function()
+    local o = { 8, pineapple = 'in shopping cart', thirsty = true }
+    local o2 = { secret = 'don\'t look!' }
+    setmetatable(o, { __index = o2 })
+    o._proto = o2
+    assert.is_true(cb.elem('pineapple', cb.allKeys(o)))
+    assert.is_true(cb.elem('thirsty', cb.allKeys(o)))
+    assert.is_true(cb.elem('secret', cb.allKeys(o)))
+    assert.is_not_true(cb.elem('1', cb.allKeys(o)))
+    assert.is_not_true(cb.elem(1, cb.allKeys(o)))
+  end)
+  
+  test('setKeys_(o, t) should set o[k] to t[k] for each k in keys(t)',
+        function()
+    local o = { protoplasm = 'a lot' }
+    cb.setKeys_(o, { 8, protoplasm = 'just a little', emotion = 'melancholy' })
+    assert.equals('just a little', o.protoplasm)
+    assert.equals('melancholy', o.emotion)
+    assert.is_true(o[1] == nil)
+  end)
+  
+  test('values(t) should return the values of all of the non-integer ' ..
+        'keys of t', function()
+    local o = { 8, protoplasm = 'just a little', emotion = 'melancholy' }
+    local o2 = { secret = 'don\'t look!' }
+    setmetatable(o, { __index = o2 })
+    o._proto = o2
+    local vs = cb.values(o)
+    assert.is_true(cb.elem('just a little', vs))
+    assert.is_true(cb.elem('melancholy', vs))
+    assert.is_not_true(cb.elem('don\'t look!', vs))
+    assert.is_not_true(cb.elem(8, vs))
+  end)
+
+  test('allValues(t) should return the values of all of the non-integer ' ..
+        'keys of t and its prototypes', function()
+    local o = { 8, protoplasm = 'just a little', emotion = 'melancholy' }
+    local o2 = { secret = 'don\'t look!' }
+    setmetatable(o, { __index = o2 })
+    o._proto = o2
+    local vs = cb.allValues(o)
+    assert.is_true(cb.elem('just a little', vs))
+    assert.is_true(cb.elem('melancholy', vs))
+    assert.is_true(cb.elem('don\'t look!', vs))
+    assert.is_not_true(cb.elem(8, vs))
+  end)
+  
+  test('objects should act as expected', function()
+    local fruit = cb.object:clone('fruit')
+    function fruit:init(name, color)
+      self.name = name
+      self.color = color
+    end
+    function fruit:talk()
+      return 'I am a ' .. self.name .. ' and I am ' .. self.color
+    end
+    local tomato = fruit:new('tomato', 'red')
+    assert.is_equal('I am a tomato and I am red', tomato:talk())
+
+    local squash = fruit:clone('squash')
+    function squash:init(name, color, shape)
+      self._proto:init(name, color)
+      self.shape = shape
+    end
+    function squash:talk()
+      return 'I am a ' .. self.shape .. ' ' .. self.name .. ' and I am ' .. self.color
+    end
+    local pumpkin = squash:new('pumpkin', 'orange', 'round')
+    assert.is_equal('round', pumpkin.shape)
+    assert.is_equal('I am a round pumpkin and I am orange', pumpkin:talk())
+    
+    assert.is_true(pumpkin:isa(fruit))
+    assert.is_not_true(pumpkin:isa(tomato)) -- tomato isn't a prototype of pumpkin  
+  end)
+  
   test('tables returned by immut should be immutable', function()
     local nt = cb.immut(t)
     nt[1] = 5
@@ -479,6 +724,15 @@ describe('cranberry', function()
     local nt = cb.immut(t)
     assert.is_true(cb.is_immut(nt))
     assert.is_not_true(cb.is_immut(t))
+  end)
+  
+  test('from_immut(t) should return a mutable version of t', function()
+    local t = { 1, 2, figs = 'good' }
+    local nt = cb.immut(t)
+    nt = cb.from_immut(nt)
+    nt.figs = 'bad'
+    assert.equals('bad', t.figs)
+    assert.equals('bad', nt.figs)
   end)
   
   test('is_table should return true iff it is a table', function()

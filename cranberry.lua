@@ -653,12 +653,13 @@ function cb.unwords(as)
   return concat(as, ' ')
 end
 
--- wrap(f, w): return bind(w, f), so that wrap(f, w)(...) = w(f, ...)
+-- wrap(f, w): wrap f in w, i.e return bind(w, f), so that wrap(f, w)(...) = w(f, ...)
 function cb.wrap(f, w)
   return cb.bind(w, f)
 end
 
--- uniq(a): return an array containing all of a's unique values
+-- uniq(a): return an array containing all of a's unique values in the order 
+-- that they appear
 function cb.uniq(a)
   if not cb.is_table(a) then return a end
   local r = {}
@@ -725,7 +726,8 @@ end
 -- called, if f returns nil for its first value, then the wrapper checks
 -- errors using the second value returned for a function. If it finds one,
 -- it calls it with the original arguments and returns its result. The
--- optional finally function is called after either of these happens.
+-- optional finally function is called with the original arguments after 
+-- either of these happens.
 function cb.trycatch(f, errors, finally)
   finally = finally or cb.id
   local function wrap(...)
@@ -733,11 +735,11 @@ function cb.trycatch(f, errors, finally)
     if res[1] == nil then
       if res[2] and errors[res[2]] then
         local nres = { errors[res[2]](...) }
-        finally()
+        finally(...)
         return unpack(nres)
       end
     end
-    finally()
+    finally(...)
     return res[1]
   end
   return wrap
@@ -858,7 +860,8 @@ function cb.cycle(a)
   return it
 end
 
--- takeWhilei(p, it): analagous to takeWhile, except takes an iterator
+-- takeWhilei(p, it): analagous to takeWhile, except takes an iterator and 
+-- returns an iterator
 function cb.takeWhilei(p, it)
   local continue = true
   local v
@@ -866,13 +869,14 @@ function cb.takeWhilei(p, it)
     if continue then
       v = it()
       continue = p(v)
-      return v
+      if continue then return v end
     end
   end
   return nit
 end
 
--- dropWhilei(p, it): analagous to dropWhile, except takes an iterator
+-- dropWhilei(p, it): analagous to dropWhile, except takes an iterator and 
+-- returns an iterator
 function cb.dropWhilei(p, it)
   local drop = true
   local v
@@ -880,7 +884,8 @@ function cb.dropWhilei(p, it)
     v = it()
     if drop then
       drop = p(v)
-    else
+    end
+    if not drop then
       return v
     end
   end
@@ -932,21 +937,52 @@ end
 -- object: base prototype to inherit from
 cb.object = { _type = 'object' }
 
--- object:new(): return a copy of this object
-function cb.object:new()
-  local _super = self._super
-  self._super = nil -- make sure that _super still points to the same object
+-- object:duplicate(): return a copy of this object without copying its
+-- prototype
+function cb.object:duplicate()
+  local _proto = self._proto
+  self._proto = nil -- make sure that _proto still points to the same object
   local o = cb.copy(self)
-  o._super = _super
-  self._super = _super -- restore self._super
+  o._proto = _proto
+  self._proto = _proto -- restore self._proto
   return o
 end
+
+-- object:new(): return an instance of object as a prototype and initialize it
+function cb.object:new(...)
+  local o = self:clone()
+  if self.init then
+    self.init(o, ...)
+  end
+  return o
+end
+
+-- object:init(): used to initialize a new object. This instance does nothing.
+function cb.object:init() end
 
 -- object:clone(?_type): return an instance of object as a prototype
 cb.object.clone = cb.clone
 
 -- object:isa(o): return true if self descends from o
 cb.object.isa = cb.isa
+
+--[[
+-- object:setmeta(t): set the metatable of object while preserving
+-- inheritance. (Note: you cannot modify __index using this method)
+-- TODO: allow modification to __index by using a wrapper function
+function cb.object:setmeta(mt)
+  if not cb.is_table(t) then return nil, cb.errors.not_table end
+  local function windex(f, t, k)
+    local v = f(t, k)
+    if v then return v end
+    return t._proto[k]
+  end
+  nmt = cb.shallowcopy(mt)
+  nmt.__index = cb.wrap(mt.__index, windex)
+  setmetatable(self, nmt)
+  return self
+end
+--]]
 
 -- keys(t): return all of the non-integer keys of t
 function cb.keys(t)
@@ -969,20 +1005,26 @@ function cb.allKeys(t)
   if not cb.is_table(t) then 
     return nil, cb.errors.not_table
   end
+  
   local prev = t
   local function it() -- iterate across the prototypes
-    local p = prev._proto
-    prev = p
-    return prev
+    local p = prev
+    prev = prev and prev._proto
+    return p
   end
-  return cb.keys(cb.foldr1(cb.defaults, cb.listiter(it)))
+  
+  local r = {}
+  for v in it do
+    r = cb.defaults(v, r)
+  end
+  return cb.keys(r)
 end
 
 -- setKeys_(o, t): set o[k] to t[k] for each k in keys(t)
 function cb.setKeys_(o, t)
   local ks = cb.keys(t)
-  for k, v in pairs(ks) do
-    o[k] = v
+  for _,k in pairs(ks) do
+    o[k] = t[k]
   end
   return o
 end
@@ -1009,14 +1051,14 @@ end
 -- Source: https://gist.github.com/tylerneylon/81333721109155b2d244
 function cb.copy(o, seen)
   -- Handle non-tables and previously-seen tables.
-  if type(obj) ~= 'table' then return obj end
-  if seen and seen[obj] then return seen[obj] end
+  if type(o) ~= 'table' then return o end
+  if seen and seen[o] then return seen[o] end
   
   -- New table; mark it as seen an copy recursively.
   local s = seen or {}
-  local res = setmetatable({}, getmetatable(obj))
-  s[obj] = res
-  for k, v in pairs(obj) do res[copy3(k, s)] = copy3(v, s) end
+  local res = setmetatable({}, getmetatable(o))
+  s[o] = res
+  for k, v in pairs(o) do res[cb.copy(k, s)] = cb.copy(v, s) end
   return res
 end
 
@@ -1051,7 +1093,7 @@ function cb.is_immut(t)
 end
 
 -- fromimmut(t): return a mutable version of t
-function cb.fromimmut(t)
+function cb.from_immut(t)
   if not cb.is_table(t) then return t end
   if not t._immut then return t end
   return t._orig
