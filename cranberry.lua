@@ -187,7 +187,7 @@ end
 function cb.curry(f, n)
   n = n or 2
   local function g(args, m)
-    if n < 1 then
+    if m < 1 then
       return f(unpack(args))
     else
       local function h(...)
