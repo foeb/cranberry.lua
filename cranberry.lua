@@ -8,6 +8,7 @@ local cb = {}
 -- library functions made local for efficiency
 local min = math.min
 local max = math.max
+local random = math.random
 local floor = math.floor
 local remove = table.remove
 local insert = table.insert
@@ -36,10 +37,10 @@ function cb.unshift_(a, v)
   return insert(a, 1, v)
 end
 
--- map(f, a): apply a function f to every member of the array a (pure)
+-- map(f, a): apply a function f to every member of the array a
 function cb.map(f, a)
   if not cb.is_table(a) then 
-    return nil, cb.errors.not_table
+    return f(a)
   end
   local na = {}
   for i = 1, #a do
@@ -52,12 +53,24 @@ end
 -- array a
 function cb.map_(f, a)
   if not cb.is_table(a) then 
-    return nil, cb.errors.not_table
+    a = f(a)
+    return a
   end
   for i = 1, #a do
     a[i] = f(a[i])
   end
   return a
+end
+
+-- each(f, a): apply a function f to every member of the array a without
+-- storing or returning the results.
+function cb.each(f, a)
+  if not cb.is_table(a) then 
+    f(a)
+  end
+  for i = 1, #a do
+    f(a[i])
+  end
 end
 
 -- foldr(f, a0, a): reduce the array a from right to left using a0 as the 
@@ -173,13 +186,13 @@ end
 -- curry(f, n)(x1)(x2)(..)(xn, ...) = f(x1, x2, .., xn, ...).
 function cb.curry(f, n)
   n = n or 2
-  local function g(args, n)
+  local function g(args, m)
     if n < 1 then
       return f(unpack(args))
     else
       local function h(...)
         cb.append_(args, { ... })
-        return g(args, n - 1)
+        return g(args, m - 1)
       end
       return h
     end
@@ -613,7 +626,6 @@ function cb.lines(s)
   end
   local r = {}
   local ri = 1
-  local si = 1
   local prev = 1
   for si = 1, s:len() do
     if s:sub(si, si) == '\n' then
@@ -772,13 +784,193 @@ function cb.is_same(t1, t2)
   return cb.is_same(getmetatable(t1), getmetatable(t2))
 end
 
--- pluck
--- shuffle
--- sort
--- sortBy
--- groupBy
--- indexBy
--- countBy
+-- pluck(t, ks): extract a list of property values
+function cb.pluck(t, k)
+  local function f(s)
+    return cb.is_table(s) and s[k]
+  end
+  return cb.map(f, t)
+end
+
+-- shuffle(a): return a shuffled copy of a using the Fisher-Yates shuffle.
+-- (Note: make sure to seed the random number generator first, such as
+-- calling math.randomseed(os.time()).)
+function cb.shuffle(a)
+  if not cb.is_table(a) then
+    return a -- already shuffled :P
+  end
+  local r = {}
+  local j
+  local i = 1
+  while a[i] ~= nil do -- this algorithm doesn't need to know the length of a
+    j = random(i)
+    if j == i then 
+      cb.push_(r, a[i])
+    else
+      cb.push_(r, r[j])
+      r[j] = a[i]
+    end
+    i = i + 1
+  end
+  return r
+end
+
+-- shuffle_(a): destructively shuffle a using the Fisher-Yates shuffle.
+-- (Note: make sure to seed the random number generator first, such as
+-- calling math.randomseed(os.time()).)
+function cb.shuffle_(a)
+  if not cb.is_table(a) then
+    return a -- already shuffled :P
+  end
+  local len = #a
+  local j
+  for i = 1, len do
+    j = (i == len and 0) or random(len-i)
+    a[i], a[i+j] = a[i+j], a[i]
+  end
+  return a
+end
+
+-- merge(a, b, comp = op.lt): merge the arrays a and b into a new array
+function cb.merge(a, b, comp)
+  if not cb.is_table(a) or not cb.is_table(b) then
+    return nil, cb.errors.not_table
+  end
+  comp = comp or cb.op.lt
+  local r = {}
+  while not cb.empty(a) and not cb.empty(b) do
+    if comp(a[1], b[1]) then
+      cb.push_(r, a[1])
+      a = cb.tail(a)
+    else
+      cb.push_(r, b[1])
+      b = cb.tail(b)
+    end
+  end
+  while not cb.empty(a) do
+    cb.push_(r, a[1])
+    a = cb.tail(a)  
+  end
+  while not cb.empty(b) do
+    cb.push_(r, b[1])
+    b = cb.tail(b)
+  end
+  return r
+end
+
+-- mergesort(a, comp = op.lt): stably sort an array a
+function cb.mergesort(a, comp)
+  if not cb.is_table(a) then
+    return a
+  end
+  comp = comp or cb.op.lt
+  local len = #a
+  if len <= 1 then
+    return a
+  end
+  local left = {}
+  local right = {}
+  for i = 1, len do
+    if i % 2 == 1 then
+      cb.push_(left, a[i])
+    else
+      cb.push_(right, a[i])
+    end
+  end
+  left = cb.mergesort(left, comp)
+  right = cb.mergesort(right, comp)
+  return cb.merge(left, right)
+end
+
+-- sort(a, comp = op.lt): shallowcopy a and then calls table.sort
+function cb.sort(a, comp)
+  local na = cb.shallowcopy(a)
+  return table.sort(na, comp)
+end
+
+-- sort_(a, comp = op.lt): alias for table.sort
+cb.sort_ = table.sort
+
+-- sortBy(a, f, comp = op.lt): return a stably sorted copy of a, ranked in 
+-- ascending order by the results of running each value through f. If f 
+-- isn't a function, it ranks each element of a[i] by a[i][f]
+function cb.sortBy(a, f, comp)
+  if not cb.is_table(a) then
+    return nil, cb.errors.not_table
+  end
+  local g = f
+  if not cb.is_function(f) then
+    g = function(v)
+      return v[f]
+    end
+  end
+  comp = comp or cb.op.lt
+  local ncomp = function(x, y)
+    return comp(g(x), g(y))
+  end
+  return cb.mergesort(a, ncomp)
+end
+
+-- groupBy(a, f): group an array a by the results of running its elements
+-- through f. If f isn't a function, it groups each element of a[i] by a[i][f]
+function cb.groupBy(a, f)
+  if not cb.is_table(a) then
+    return nil, cb.errors.not_table
+  end
+  local g = f
+  if not cb.is_function(f) then
+    g = function(v)
+      return v[f]
+    end
+  end
+  local r = {}
+  local k
+  for i = 1, #a do
+    k = g(a[i])
+    if r[k] == nil then
+      r[k] = { a[i] }
+    else
+      cb.push_(r[k], a[i])
+    end
+  end
+  return r
+end
+
+-- countBy(a, f): sort an array a into groups according to f and return a
+-- count for the number of objects in each group.
+function cb.countBy(a, f)
+  local r = cb.groupBy(a, f)
+  if r == nil then
+    return nil, cb.errors.not_table
+  end
+  cb.map_(cb.op.len, r)
+  return r
+end
+
+-- op: a table of functions that allow you to call operators by name
+cb.op = {
+  add = function(a, b) return a + b end,
+  sub = function(a, b) return a - b end,
+  mul = function(a, b) return a * b end,
+  div = function(a, b) return a / b end,
+  mod = function(a, b) return a % b end,
+  unm = function(a) return -a end,
+  concat = function(a, b) return a .. b end,
+  len = function(a) return #a end,
+  eq = function(a, b) return a == b end,
+  neq = function(a, b) return a ~= b end,
+  lt = function(a, b) return a < b end,
+  gt = function(a, b) return a > b end,
+  le = function(a, b) return a <= b end,
+  ge = function(a, b) return a >= b end,
+  opAnd = function(a, b) return a and b end,
+  opOr = function(a, b) return a or b end,
+  opNot = function(a) return not a end,
+  newtable = function(...) return { ... } end,
+  funcall = function(f, ...) return f(...) end,
+  index = function(t, k) return t[k] end,
+  newindex = function(t, k, v) t[k] = v end
+}
 
 -- once(f): return a function that only returns a value the first time it 
 -- is called
@@ -958,7 +1150,7 @@ function cb.object:new(...)
 end
 
 -- object:init(): used to initialize a new object. This instance does nothing.
-function cb.object:init() end
+function cb.object.init() end
 
 -- object:clone(?_type): return an instance of object as a prototype
 cb.object.clone = cb.clone
@@ -991,8 +1183,8 @@ function cb.keys(t)
   end
   local r = {}
   local ri = 1
-  for k, v in pairs(t) do
-    if not cb.is_number(v) then
+  for k, _ in pairs(t) do
+    if not cb.is_number(k) then
       r[ri] = k
       ri = ri + 1
     end
@@ -1023,7 +1215,7 @@ end
 -- setKeys_(o, t): set o[k] to t[k] for each k in keys(t)
 function cb.setKeys_(o, t)
   local ks = cb.keys(t)
-  for _,k in pairs(ks) do
+  for _,k in ipairs(ks) do
     o[k] = t[k]
   end
   return o
@@ -1044,7 +1236,27 @@ function cb.allValues(t)
   return cb.map(f, cb.allKeys(t))
 end
 
--- mapObject(f, o): like map but includes the hashtable side
+-- mapObject_(f, o): like map but destructively iterates over all of the 
+-- keys of o
+function cb.mapObject_(f, o)
+  for k,v in pairs(o) do
+    o[k] = f(v)
+  end
+  return o
+end
+
+-- mapObject(f, o): like map but iterates over all of the keys of o
+function cb.mapObject(f, o)
+  local ks = cb.keys(o)
+  local r = {}
+  for _, k in ipairs(ks) do
+    r[k] = f(o[k])
+  end
+  for i, _ in ipairs(o) do
+    r[i] = f(o[i])
+  end
+  return r
+end
 
 -- copy(t): return a deep copy of t
 -- Credit to @tylerneylon

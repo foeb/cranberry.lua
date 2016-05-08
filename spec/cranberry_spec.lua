@@ -532,6 +532,25 @@ describe('cranberry', function()
     assert.equals(6, it())
   end)
   
+  test('mapObject(f, o) should be like map but iterates over the ' ..
+        'non-integer keys of o', function()
+    local o = { 'fungus', walrus = 'tooth', wolf = 'fang' }
+    assert.is_same(
+      { 'FUNGUS', walrus = 'TOOTH', wolf = 'FANG' },
+      cb.mapObject(string.upper, o)
+    )
+  end)
+  
+  test('mapObject_(f, o) should be like map but destructively iterates ' ..
+        'over the non-integer keys of o', function()
+    local o = { 'fungus', walrus = 'tooth', wolf = 'fang' }
+    cb.mapObject_(string.upper, o)
+    assert.is_same(
+      { 'FUNGUS', walrus = 'TOOTH', wolf = 'FANG' },
+      o
+    )    
+  end)
+  
   test('copy should return a deep copy of the object', function()
     local t2 = cb.copy(t)
     assert.is_same(t, t2)
