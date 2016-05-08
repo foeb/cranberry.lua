@@ -423,6 +423,13 @@ describe('cranberry', function()
     assert.equals(f(g(h(2))), cb.compose(f, g, h)(2))
   end)
   
+  test('new should return a copy of the object', function()
+    local o = cb.object:clone('fruit')
+    local o2 = o:new()
+    assert.equals(o._type, o2._type)
+    assert.equals(o._super, o2._super)
+  end)
+  
   test('clone should allow access to their prototype\'s fields', function()
     local o = cb.clone(t)
     assert.equals(o.sayHello, t.sayHello)

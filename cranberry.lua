@@ -1,8 +1,6 @@
 
 local cb = {}
 
-local log = require 'log'
-
 -- TODO: find a way to access lua_createtable in order to avoid triggering 
 -- rehashes when initializing arrays. decide if this is important or necessary
 -- TODO: include a submodule of pre-curried functions
@@ -933,6 +931,16 @@ end
 
 -- object: base prototype to inherit from
 cb.object = { _type = 'object' }
+
+-- object:new(): return a copy of this object
+function cb.object:new()
+  local _super = self._super
+  self._super = nil -- make sure that _super still points to the same object
+  local o = cb.copy(self)
+  o._super = _super
+  self._super = _super -- restore self._super
+  return o
+end
 
 -- object:clone(?_type): return an instance of object as a prototype
 cb.object.clone = cb.clone
