@@ -1,3 +1,4 @@
+-- Released under the MIT License (<link>)
 
 local cb = {}
 
@@ -134,16 +135,19 @@ function cb.foldl1(f, a)
   return r
 end
 
+
+--[[
 -- filter(f, a): return an array containing all elements of an array a that 
 -- are true under the function f(v)
 function cb.filter(f, a)
   local function g(_, v) return f(v) end
   return cb.filteri(g, a)
 end
+--]]
 
--- filteri(f, a): similar to filter, except it uses a function of the 
--- form f(i, v)
-function cb.filteri(f, a)
+-- filter(f, a): return an array containing all elements of an array a that 
+-- are true under the function f(i, v)
+function cb.filter(f, a)
   if not cb.is_table(a) then 
     return nil, cb.errors.not_table
   end
@@ -158,9 +162,9 @@ function cb.filteri(f, a)
   return r
 end
 
--- filterk(f, a): similar to filter, except it only operates on a hash 
--- table with the function f(k, v)
-function cb.filterk(f, t)
+-- filterObject(f, t): similar to filter, except it operates on the entire
+-- table using a function f(k, v)
+function cb.filterObject(f, t)
   if not cb.is_table(t) then 
     return nil, cb.errors.not_table
   end
@@ -292,8 +296,8 @@ function cb.applyUntil(p, f, a)
   end
 end
 
--- append(a1, a2): return a1 appended by a2
-function cb.append(a1, a2)
+-- _append(a1, a2): return a1 appended by a2
+local function _append(a1, a2)
   if not cb.is_table(a1) or not cb.is_table(a2) then 
     return nil, cb.errors.not_table
   end
@@ -309,17 +313,17 @@ function cb.append(a1, a2)
   return r
 end
 
--- appendn(...): append all of the arguments
-function cb.appendn(...)
+-- append(...): append all of the arguments
+function cb.append(...)
   local args = { ... }
   if not cb.all(cb.is_table, args) then 
     return nil, cb.errors.not_table
   end
-  return cb.foldr(cb.append, {}, args)
+  return cb.foldr(_append, {}, args)
 end
 
--- append_(a1, a2): destructively append a1 by a2
-function cb.append_(a1, a2)
+-- _append_(a1, a2): destructively append a1 by a2
+local function _append_(a1, a2)
   if not cb.is_table(a1) or not cb.is_table(a2) then 
     return nil, cb.errors.not_table
   end
@@ -331,13 +335,13 @@ function cb.append_(a1, a2)
   return a1
 end
 
--- appendn_(...): destructively append all of the arguments
-function cb.appendn_(...)
+-- append_(...): destructively append all of the arguments
+function cb.append_(...)
   local args = { ... }
   if not cb.all(cb.is_table, args) then 
     return nil, cb.errors.not_table
   end
-  return cb.foldr(cb.append_, {}, args)
+  return cb.foldr(_append_, {}, args)
 end
 
 -- head(a, n = 1): return the first n elements of a in an array. 
@@ -424,7 +428,7 @@ end
 
 -- concat(as): concatenate all of the elements of as
 function cb.concat(as)
-  return cb.appendn(unpack(as))
+  return cb.append(unpack(as))
 end
 
 -- scanl(f, a0, a): is similar to foldl, except it returns a list 
@@ -530,6 +534,8 @@ end
 function cb.span(p, a)
   return { cb.takeWhile(p, a), cb.dropWhile(p, a) }
 end
+
+-- TODO: replace the zip functions with functions of the form zip(...), zipWith(f, ...)
 
 -- zip(a, b): return an array of corresponding pairs of elements from 
 -- a and b. If one array is short, then the remaining elements of the 
@@ -692,6 +698,8 @@ function cb.negate(p)
   end
   return q
 end
+
+-- TODO: replace bind with bindn
 
 -- bind(f, v): return a function g(...) = f(v, ...)
 function cb.bind(f, v)
@@ -968,7 +976,7 @@ cb.op = {
   opNot = function(a) return not a end,
   newtable = function(...) return { ... } end,
   funcall = function(f, ...) return f(...) end,
-  index = function(t, k) return t[k] end,
+  index = function(t, k) return t[k] end, 
   newindex = function(t, k, v) t[k] = v end
 }
 
@@ -1018,11 +1026,11 @@ function cb.compose(f, ...)
   return cb.foldr1(_compose, { f, ... })
 end
 
--- takei(it, n): return an iterator that returns only the first n values of it
-cb.takei = cb.before
+-- takei(n, it): return an iterator that returns only the first n values of it
+cb.takei = cb.flip(cb.before)
 
--- dropi(it, n): return an iterator that skips the first n values of it
-cb.dropi = cb.after
+-- dropi(n, it): return an iterator that skips the first n values of it
+cb.dropi = cb.flip(cb.after)
 
 -- iterate(f, x): return an iterator that applies f to the previous value in an endless loop
 function cb.iterate(f, x)
@@ -1037,7 +1045,7 @@ end
 
 -- replicate(n, x): return an array containing x n times
 function cb.replicate(n, x)
-  return cb.iterlist(cb.takei(cb.const(x), n))
+  return cb.iterlist(cb.takei(n, cb.const(x)))
 end
 
 -- cycle(a): return an iterator that cycles through an array a in an endless loop
@@ -1103,8 +1111,38 @@ function cb.inc(i) return i + 1 end
 -- dec(i): return i - 1 (utility)
 function cb.dec(i) return i - 1 end
 
+--[[ Prototypal OOP example:
+
+local fruit = cb.object:clone('fruit')
+function fruit:init(name, color)
+  self.name = name
+  self.color = color
+end
+function fruit:talk()
+  return 'I am a ' .. self.name .. ' and I am ' .. self.color
+end
+local tomato = fruit:new('tomato', 'red')
+assert.is_equal('I am a tomato and I am red', tomato:talk())
+
+local squash = fruit:clone('squash')
+function squash:init(name, color, shape)
+  self._proto:init(name, color)
+  self.shape = shape
+end
+function squash:talk()
+  return 'I am a ' .. self.shape .. ' ' .. self.name .. ' and I am ' .. self.color
+end
+local pumpkin = squash:new('pumpkin', 'orange', 'round')
+assert.is_equal('round', pumpkin.shape)
+assert.is_equal('I am a round pumpkin and I am orange', pumpkin:talk())
+
+assert.is_true(pumpkin:isa(fruit))
+assert.is_not_true(pumpkin:isa(tomato)) -- tomato isn't a prototype of pumpkin  
+
+--]]
+
 -- clone(o, ?_type): return an instance of o as a prototype
-function cb.clone(o, _type)
+local function clone(o, _type)
   if not cb.is_table(o) then return o end
   local t = { _proto = o, _type = _type or o._type }
   setmetatable(t, { __index = o })
@@ -1112,7 +1150,7 @@ function cb.clone(o, _type)
 end
 
 -- object:isa(t, o): return true if t descends from o
-function cb.isa(t, o)
+local function isa(t, o)
   local function getProtoIter(s) 
     local v = s
     return function()
@@ -1159,10 +1197,10 @@ end
 function cb.object.init() end
 
 -- object:clone(?_type): return an instance of object as a prototype
-cb.object.clone = cb.clone
+cb.object.clone = clone
 
 -- object:isa(o): return true if self descends from o
-cb.object.isa = cb.isa
+cb.object.isa = isa
 
 --[[
 -- object:setmeta(t): set the metatable of object while preserving
@@ -1242,7 +1280,7 @@ function cb.allValues(t)
   return cb.map(f, cb.allKeys(t))
 end
 
--- mapObject_(f, o): like map but destructively iterates over all of the 
+-- mapObject_(f, t): like map but destructively iterates over all of the 
 -- keys of o
 function cb.mapObject_(f, o)
   for k,v in pairs(o) do
@@ -1251,7 +1289,7 @@ function cb.mapObject_(f, o)
   return o
 end
 
--- mapObject(f, o): like map but iterates over all of the keys of o
+-- mapObject(f, t): like map but iterates over all of the keys of o
 function cb.mapObject(f, o)
   local ks = cb.keys(o)
   local r = {}
@@ -1342,7 +1380,23 @@ function cb.is_function(o)
   return type(o) == 'function'
 end
 
--- is_callable(o): return true if o can be called like a function
+function cb.is_boolean(o)
+  return type(o) == 'boolean'
+end
+
+function cb.is_nil(o)
+  return o == nil
+end
+
+function cb.is_userdata(o)
+  return type(o) == 'userdata' -- not tested
+end
+
+function cb.is_thread(o)
+  return type(o) == 'thread' -- not tested
+end
+
+-- is_callable(o): return true if o can be called like a function. Untested
 function cb.is_callable(o)
   return cb.is_function or (getmetatable(o) and getmetatable(o).__call ~= nil)
 end

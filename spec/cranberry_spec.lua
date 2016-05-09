@@ -61,21 +61,23 @@ describe('cranberry', function()
     assert.equals(w, ((1 - 2) - 3) - 4)
   end)
   
+--[[
   test('filter takes a function and returns an array of all elements ' ..
         'of an array that are true under that function', function()
     local v = cb.filter(function(x) return x % 2 == 0 end, a)
     assert.is_same(v, { 2, 4 })
   end)
+--]]
   
-  test('filteri should be similar to filter, except it uses a function ' ..
-        'of the form f(i, v)', function()
-    local v = cb.filteri(function(i,x) return (x%2 == 0) or (i == 3) end, a)
+  test('filter takes a function and returns an array of all elements ' ..
+        'of an array that are true under that function', function()
+    local v = cb.filter(function(i,x) return (x%2 == 0) or (i == 3) end, a)
     assert.is_same(v, { 2, 3, 4 })
   end)
   
-  test('filterk should be similar to filter, except it only operates on ' ..
-        'a hash table with the function f(k, v)', function()
-    local v = cb.filterk(function(k, x) 
+  test('filterObject should be similar to filter, except it operates on ' ..
+        'the entire table with the function f(k, v)', function()
+    local v = cb.filterObject(function(k, x) 
       return (x == 1) or (k == 'pear') 
     end, { pear = true, apple = false, mango = 1 })
     assert.equals(true, v['pear'])
@@ -178,8 +180,8 @@ describe('cranberry', function()
     assert.is_same(cb.append({1, 2}, {3, 4}), a)
   end)
   
-  test('appendn should append all of the arguments', function()
-    assert.is_same(cb.appendn({1}, {2, 3}, {4}), a)
+  test('append should append all of the arguments', function()
+    assert.is_same(cb.append({1}, {2, 3}, {4}), a)
   end)
 
   test('append_ should destructively append a1 by a2', function()
@@ -188,9 +190,9 @@ describe('cranberry', function()
     assert.is_same(a, b)
   end)
   
-  test('appendn_ should destructively append all of the arguments', function()
+  test('append_ should destructively append all of the arguments', function()
     local b = { 1 }
-    cb.appendn_(b, {2, 3}, {4})
+    cb.append_(b, {2, 3}, {4})
     assert.is_same(b, a)
   end)
   
@@ -475,7 +477,7 @@ describe('cranberry', function()
       return total
     end
     -- a = { 1,2,3,..., 100 }
-    local a = cb.iterlist(cb.takei(cb.iterate(cb.inc, 1), 100))
+    local a = cb.iterlist(cb.takei(100, cb.iterate(cb.inc, 1)))
     local b = cb.copy(a)
     local total1 = 0
     local total2 = 0
@@ -495,7 +497,7 @@ describe('cranberry', function()
   test('mergesort(a, comp = op.lt) should sort arrays nondestructively', 
         function()
      -- a = { 1,2,3,..., 100 }
-    local a = cb.iterlist(cb.takei(cb.iterate(cb.inc, 1), 100))
+    local a = cb.iterlist(cb.takei(100, cb.iterate(cb.inc, 1)))
     local b = cb.shuffle(a)
     assert.is_same(a, cb.mergesort(b))
   end)
@@ -663,13 +665,13 @@ describe('cranberry', function()
   end)
   
   test('clone should allow access to their prototype\'s fields', function()
-    local o = cb.clone(t)
+    local o = cb.object.clone(t)
     assert.equals(o.sayHello, t.sayHello)
   end)
   
   test('clone should not be able to modify their prototype\'s fields', 
         function()
-    local o = cb.clone(t)
+    local o = cb.object.clone(t)
     o.sayHello = function() return 'bye' end
     assert.equals(t.sayHello(), 'hello')
   end)
