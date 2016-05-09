@@ -1,4 +1,4 @@
--- Released under the MIT License (<link>)
+-- Released under the MIT License (https://raw.githubusercontent.com/foeb/cranberry.lua/master/LICENSE)
 
 local cb = {}
 
