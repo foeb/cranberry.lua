@@ -2,7 +2,7 @@
 
 __Cranberry__ is a Lua library that aims to make functional programming easier by providing a set of useful and frequently needed functions, inspired by the Haskell Prelude and Underscore.js. 
 
-__Note: cranberry.lua is a very new project and it is very likely that I will add and remove functions in the near future to make it more cohesive and useful as a library.__
+__Note: cranberry.lua is a *very* new project and it is very likely that it will change drastically in the near future. Don't use it for any projects in the meantime.__
 
 ## Usage
 
