@@ -1111,36 +1111,6 @@ function cb.inc(i) return i + 1 end
 -- dec(i): return i - 1 (utility)
 function cb.dec(i) return i - 1 end
 
---[[ Prototypal OOP example:
-
-local fruit = cb.object:clone('fruit')
-function fruit:init(name, color)
-  self.name = name
-  self.color = color
-end
-function fruit:talk()
-  return 'I am a ' .. self.name .. ' and I am ' .. self.color
-end
-local tomato = fruit:new('tomato', 'red')
-assert.is_equal('I am a tomato and I am red', tomato:talk())
-
-local squash = fruit:clone('squash')
-function squash:init(name, color, shape)
-  self._proto:init(name, color)
-  self.shape = shape
-end
-function squash:talk()
-  return 'I am a ' .. self.shape .. ' ' .. self.name .. ' and I am ' .. self.color
-end
-local pumpkin = squash:new('pumpkin', 'orange', 'round')
-assert.is_equal('round', pumpkin.shape)
-assert.is_equal('I am a round pumpkin and I am orange', pumpkin:talk())
-
-assert.is_true(pumpkin:isa(fruit))
-assert.is_not_true(pumpkin:isa(tomato)) -- tomato isn't a prototype of pumpkin  
-
---]]
-
 -- clone(o, ?_type): return an instance of o as a prototype
 local function clone(o, _type)
   if not cb.is_table(o) then return o end
@@ -1375,25 +1345,29 @@ function cb.is_number(o)
   return type(o) == 'number' 
 end
 
--- is_function(o): return true if o is a number
+-- is_function(o): return true if o is a function
 function cb.is_function(o)
   return type(o) == 'function'
 end
 
+-- is_boolean(o): return true if o is a boolean
 function cb.is_boolean(o)
   return type(o) == 'boolean'
 end
 
+-- is_nil(o): return true if o is nil
 function cb.is_nil(o)
   return o == nil
 end
 
+-- is_userdata(o): return true if o is userdata. Untested
 function cb.is_userdata(o)
-  return type(o) == 'userdata' -- not tested
+  return type(o) == 'userdata' 
 end
 
+-- is_thread(o): return true if o is a thread. Untested
 function cb.is_thread(o)
-  return type(o) == 'thread' -- not tested
+  return type(o) == 'thread'
 end
 
 -- is_callable(o): return true if o can be called like a function. Untested
@@ -1403,11 +1377,8 @@ end
 
 return cb
 
--- References:
+-- References and inspirations:
 -- https://hackage.haskell.org/package/base-4.8.2.0/docs/Prelude.html
 -- http://underscorejs.org
 -- https://github.com/Yonaba/Moses
--- https://github.com/Suor/funcy
--- http://ramdajs.com/docs/
 -- http://bolinfest.com/javascript/inheritance.php
--- http://clojure.github.io/clojure/clojure.walk-api.html
