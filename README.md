@@ -35,6 +35,8 @@ print(v)
 
 This project uses busted for its unit tests. To run the the tests, install busted and call `busted` in the main folder.
 
+On June 3rd, 2016, Luacov reported that cranberry.lua has a 90.17% code coverage.
+
 ## Manifest
 
 Cranberry currently contains these functions:
@@ -185,7 +187,4 @@ Cranberry currently contains these functions:
 - `is_nil(o)`
 - `is_userdata(o)`
 - `is_thread(o)`
- 
-## Test coverage
 
-On June 3rd, 2016, Luacov reported that cranberry.lua has a 90.17% code coverage.
