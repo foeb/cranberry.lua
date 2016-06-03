@@ -18,13 +18,16 @@ local unpack = unpack or table.unpack -- 5.1, 5.2, and 5.3 compatibility
 
 -- push_(a, v): destructively append v to an array a
 function cb.push_(a, v)
-  return insert(a, v)
+  a[#a + 1] = v
+  return a
 end
 
 -- pop_(a): destructively remove the last element of an array a and 
 -- return it
 function cb.pop_(a)
-  return remove(a)
+  local v = a[#a]
+  a[#a] = nil
+  return v
 end
 
 -- shift_(a): destructively remove the first element of an array a and 
