@@ -186,4 +186,6 @@ Cranberry currently contains these functions:
 - `is_userdata(o)`
 - `is_thread(o)`
  
+## Test coverage
 
+On June 3rd, 2016, Luacov reported that cranberry.lua has a 90.17% code coverage.
